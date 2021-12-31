@@ -11,25 +11,20 @@ mkdir -p $WORKDIR
 cd $WORKDIR
 touch ./config.toml
 
-sudo echo "\n127.0.0.1 $LOCAL_HOSTNAME" >> /etc/hosts
-
 ## insert/update hosts entry
 matches_in_hosts="$(grep -n $LOCAL_HOSTNAME /etc/hosts | cut -f1 -d:)"
 host_entry="127.0.0.1 ${LOCAL_HOSTNAME}"
 
-echo "Please enter your password if requested."
-
-if [ ! -z "$matches_in_hosts" ]
-then
-    echo "Updating existing hosts entry."
-    # iterate over the line numbers on which matches were found
-    while read -r line_number; do
-        # replace the text of each line with the desired host entry
-        sudo sed -i '' "${line_number}s/.*/${host_entry} /" /etc/hosts
-    done <<< "$matches_in_hosts"
+if [ ! -z "$matches_in_hosts" ]; then
+  echo "Updating existing hosts entry."
+  # iterate over the line numbers on which matches were found
+  while read -r line_number; do
+      # replace the text of each line with the desired host entry
+      sudo sed -i '' "${line_number}s/.*/${host_entry} /" /etc/hosts
+  done <<< "$matches_in_hosts"
 else
-    echo "Adding new hosts entry."
-    echo "$host_entry" | sudo tee -a /etc/hosts > /dev/null
+  echo "Adding new hosts entry."
+  echo "$host_entry" | sudo tee -a /etc/hosts > /dev/null
 fi
 
 ## create docker-compose.yml file
@@ -70,13 +65,13 @@ EOF
 ## bring up omnibus and runner
 docker-compose up -d
 
-## sleep for 5 mins while gitlab configures itself
-#sleep 300
+## sleep for 7 mins while gitlab configures itself
+sleep 420
 
+## authenticate using root
 body_header=$(curl -k -L -c cookies.txt -i "${LOCAL_URL}:8080/users/sign_in" -s)
 csrf_token=$(echo $body_header | perl -ne 'print "$1\n" if /new_user.*?authenticity_token"[[:blank:]]value="(.+?)"/' | sed -n 1p)
 
-## send login credentials
 curl -k -L -b cookies.txt -c cookies.txt -i "${LOCAL_URL}:8080/users/sign_in" \
     --data "user[login]=root&user[password]=${GITLAB_ROOT_PASSWORD}" \
     --data-urlencode "authenticity_token=${csrf_token}"
@@ -93,7 +88,7 @@ body_header=$(curl -k -L -b cookies.txt "${LOCAL_URL}:8080/-/profile/personal_ac
 # Scrape the personal access token from the response HTML
 PERSONAL_ACCESS_TOKEN=$(echo $body_header | perl -ne 'print "$1\n" if /created-personal-access-token"[[:blank:]]value="(.+?)"/' | sed -n 1p)
 
-## create the group
+## create the group and get the ids
 curl --request POST \
   --insecure \
   --header "PRIVATE-TOKEN: $PERSONAL_ACCESS_TOKEN" \
@@ -110,12 +105,12 @@ echo $GROUP_IDS | jq -c '.[]' | while read i; do
   if [[ $name =~ $INITIAL_GITLAB_GROUP ]]; then
     REGISTRATION_TOKEN=$(curl -k --header "Private-Token: $PERSONAL_ACCESS_TOKEN" "${LOCAL_URL}:8080/api/v4/groups/${id}" | jq -r '.runners_token')
 
-  RUNNER_TOKEN=$(curl --request POST "${LOCAL_URL}:8080/api/v4/runners" \
-    --insecure \
-    --form "token=${REGISTRATION_TOKEN}" \
-    --form "description=Sample runner" | jq -r .token)
+    RUNNER_TOKEN=$(curl --request POST "${LOCAL_URL}:8080/api/v4/runners" \
+      --insecure \
+      --form "token=${REGISTRATION_TOKEN}" \
+      --form "description=Sample runner" | jq -r .token)
 
-  cat << EOF >config.toml
+    cat << EOF >config.toml
 concurrent = 1
 log_level = "warning"
 check_interval = 0
@@ -142,5 +137,4 @@ EOF
   fi
 done
 
-cat config.toml
 docker restart runner
