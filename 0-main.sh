@@ -96,6 +96,8 @@ curl --request POST \
   --data "{\"path\": \"${INITIAL_GITLAB_GROUP}\", \"name\": \"${INITIAL_GITLAB_GROUP}\"}" \
   "${LOCAL_URL}:8080/api/v4/groups/"
 
+sudo apt install jq -y
+
 GROUP_IDS=$(curl -k --header "Private-Token: $PERSONAL_ACCESS_TOKEN" "${LOCAL_URL}:8080/api/v4/groups?name=${INITIAL_GITLAB_GROUP}")
 
 echo $GROUP_IDS | jq -c '.[]' | while read i; do
