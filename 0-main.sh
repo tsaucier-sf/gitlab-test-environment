@@ -121,7 +121,7 @@ echo $GROUP_IDS | jq -c '.[]' | while read i; do
       --form "description=Sample runner" | jq -r .token)
 
     cat << EOF >config.toml
-concurrent = 1
+concurrent = 3
 log_level = "warning"
 check_interval = 0
 
@@ -138,12 +138,19 @@ check_interval = 0
     disable_entrypoint_overwrite = false
     oom_kill_disable = false
     disable_cache = false
-    volumes = ["/cache", "/var/run/docker.sock:/var/run/docker.sock"]
     shm_size = 0
     wait_for_services_timeout = 120
-    pull_policy = "always"
     extra_hosts = ["${LOCAL_HOSTNAME}:${HOST_IP}"]
-    allowed_images = ["*"]
+    pull_policy = "always"
+    volumes = [
+      "/cache",
+      "/var/run/docker.sock:/var/run/docker.sock",
+      "/var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket"
+    ]
+    allowed_images = [
+      "*",
+      "*/*"
+    ]
 EOF
   fi
 done
